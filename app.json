@@ -40,6 +40,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "402c660c-5caa-4e9b-a058-6e270fb69e5b"
+      }
+    },
+    "owner": "visitgauteng"
   }
 }
