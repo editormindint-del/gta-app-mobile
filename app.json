@@ -2,7 +2,7 @@
   "expo": {
     "name": "Visit Gauteng",
     "slug": "visit-gauteng",
-    "version": "2.1.0",
+    "version": "3.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "visitgauteng",

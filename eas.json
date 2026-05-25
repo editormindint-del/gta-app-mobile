@@ -24,12 +24,15 @@
   "submit": {
     "production": {
       "ios": {
-        "appleTeamId": "84NC742K68",
-        "ascAppId":    "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
-        "bundleIdentifier": "com.visitgp.app"
+        "appleTeamId":         "84NC742K68",
+        "ascAppId":            "6448814725",
+        "bundleIdentifier":    "com.visitgp.app",
+        "ascApiKeyPath":       "/home/gaute/.secrets/AuthKey_78C83PB6H4.p8",
+        "ascApiKeyId":         "78C83PB6H4",
+        "ascApiKeyIssuerId":   "d1b23949-fd18-44ce-9ccf-7f582418ef4e"
       },
       "android": {
-        "serviceAccountKeyPath": "/root/secrets/google-play-service-account.json",
+        "serviceAccountKeyPath": "/home/gaute/.secrets/google-play-service-account.json",
         "track": "internal",
         "releaseStatus": "draft"
       }
