@@ -1,11 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { Platform, Text, type ColorValue, type TextStyle } from 'react-native';
+import { Platform, type ColorValue } from 'react-native';
 
-/** Bottom-tab icons. We use a single text glyph per tab to avoid pulling
- *  an icon font dependency and to match the web app's clean type-led style. */
-function TabIcon({ symbol, color }: { symbol: string; color: ColorValue }) {
-  const style: TextStyle = { fontSize: 22, color, lineHeight: 24 };
-  return <Text style={style}>{symbol}</Text>;
+/** Render a single Ionicons glyph for the bottom tab bar. Using filled
+ *  variants for stronger presence against the dark background. */
+function TabIcon({ name, color }: { name: React.ComponentProps<typeof Ionicons>['name']; color: ColorValue }) {
+  return <Ionicons name={name} size={22} color={color as string} />;
 }
 
 export default function TabLayout() {
@@ -33,35 +33,35 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Visit',
-          tabBarIcon: ({ color }) => <TabIcon symbol="◎" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="location-sharp" color={color} />,
         }}
       />
       <Tabs.Screen
         name="business"
         options={{
           title: 'Business',
-          tabBarIcon: ({ color }) => <TabIcon symbol="◫" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="briefcase" color={color} />,
         }}
       />
       <Tabs.Screen
         name="live"
         options={{
           title: 'Live',
-          tabBarIcon: ({ color }) => <TabIcon symbol="◉" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="radio" color={color} />,
         }}
       />
       <Tabs.Screen
         name="market"
         options={{
           title: 'Market',
-          tabBarIcon: ({ color }) => <TabIcon symbol="▤" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="basket" color={color} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
           title: 'More',
-          tabBarIcon: ({ color }) => <TabIcon symbol="≡" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="menu" color={color} />,
         }}
       />
     </Tabs>
