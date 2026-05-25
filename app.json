@@ -18,7 +18,7 @@
       "icon": "./assets/images/icon.png"
     },
     "android": {
-      "package": "com.visitgp.app",
+      "package": "com.wnapp.visitgp",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#111111",
