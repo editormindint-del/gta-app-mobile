@@ -80,7 +80,7 @@ npx eas submit --platform android --latest
 
 ### EAS Build credentials
 
-iOS uploads use the App Store Connect API key. On the prod box it lives at `/root/secrets/AuthKey_4ARW28DFUW.p8` (mode 600, root-only, never committed). Key ID + Issuer ID + Apple Team ID + bundle ID are in `/root/secrets/asc-api-creds.env`. EAS reads these via env vars or interactive prompt at submit time.
+iOS uploads use the App Store Connect API key. On the prod box it lives at `/root/secrets/AuthKey_<KeyID>.p8` (mode 600, root-only, never committed) with a `gaute`-readable mirror at `/home/gaute/.secrets/`. Key ID + Issuer ID + Apple Team ID + bundle ID are in `/root/secrets/asc-api-creds.env`. The key must be created with the **Admin** role in App Store Connect — App Manager / Developer roles can't create Distribution Certificates and will fail with a 403. EAS reads these via env vars or interactive prompt at submit time.
 
 ---
 
