@@ -1,9 +1,10 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,7 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
-import { IN_APP_HOSTS, NATIVE_UA_TOKEN } from '@/constants/config';
+import { BASE_URL, IN_APP_HOSTS, NATIVE_UA_TOKEN } from '@/constants/config';
+import { authBus } from '@/lib/auth-bus';
 
 /** Hosts that demand a "real browser" UA (Google enforces this with a hard
  *  403 disallowed_useragent on accounts.google.com when called from any
@@ -34,6 +36,34 @@ const OAUTH_HOSTS = new Set<string>([
 /** Path prefixes on www.facebook.com that are OAuth dialogs (not regular
  *  Facebook pages). Catches paths like /v18.0/dialog/oauth, /login/, etc. */
 const FACEBOOK_OAUTH_PREFIXES = ['/dialog/oauth', '/login', '/v', '/oauth'];
+
+/** JS injected into every WebView before the page runs. Exposes a tiny
+ *  native bridge the web app can call to start an OAuth flow in the system
+ *  browser. We do this because Google's "Use secure browsers" policy hard-
+ *  blocks any WebView UA on accounts.google.com (Error 403
+ *  disallowed_useragent), and relying on onShouldStartLoadWithRequest to
+ *  catch the cross-origin redirect from NextAuth's POST is flaky on iOS
+ *  WebKit. With this bridge the web app gets the OAuth URL up front and
+ *  hands it straight to SFSafariViewController / Chrome Custom Tabs,
+ *  which Google accepts. */
+const NATIVE_BRIDGE_JS = `
+(function() {
+  if (window.__vgNative && window.__vgNative.version >= 2) return;
+  window.__vgNative = {
+    version: 2,
+    /** Open an OAuth provider URL in the system browser. */
+    openOAuth: function(url) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'open-oauth',
+          url: String(url || ''),
+        }));
+      } catch (_e) {}
+    },
+  };
+})();
+true;
+`;
 
 type Props = {
   /** Initial URL this tab opens to. */
@@ -56,22 +86,64 @@ export function AppWebView({ url }: Props) {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  /** Open URL in iOS SFSafariViewController / Android Custom Tabs. On
-   *  dismiss, reload the WebView so any session cookies set during the
-   *  browser session (Google OAuth, etc.) are picked up. */
-  async function openInBrowserThenReload(targetUrl: string) {
+  // Subscribe to the deep-link auth bus. When the user finishes OAuth in
+  // SFSafariViewController, the web app redirects to visitgauteng://auth/
+  // complete?token=…; the root layout catches that, dismisses the browser
+  // overlay, and emits the token here. We navigate the WebView to the
+  // consume endpoint so the session cookie lands in the WebView's own jar.
+  useEffect(() => {
+    return authBus.onToken((token) => {
+      const consumeUrl = `${BASE_URL}/auth/mobile-consume?token=${encodeURIComponent(token)}`;
+      // Use injectJavaScript instead of reload — webRef.source can be stale.
+      webRef.current?.injectJavaScript(
+        `window.location.replace(${JSON.stringify(consumeUrl)}); true;`
+      );
+    });
+  }, []);
+
+  /** Open URL in iOS SFSafariViewController / Android Custom Tabs. Used for
+   *  generic external links (third-party blogs, PayFast, etc.) where we don't
+   *  need a custom-scheme return — just a "go look at this and come back". */
+  async function openInBrowser(targetUrl: string) {
     try {
       await WebBrowser.openBrowserAsync(targetUrl, {
-        // Match the brand
         toolbarColor:           '#111111',
         controlsColor:          '#f7b81e',
         secondaryToolbarColor:  '#111111',
-        // iOS only — keeps Safari overlay tied to our app's lifecycle
         dismissButtonStyle:     'close',
       });
-    } finally {
-      // The Safari overlay has been dismissed. Reload to pick up cookies.
-      webRef.current?.reload();
+    } catch {
+      // User dismissed or browser failed to open — nothing to recover.
+    }
+  }
+
+  /** Open an OAuth provider URL in an ASWebAuthenticationSession (iOS) /
+   *  Custom Tabs auth session (Android). Unlike openBrowserAsync, this
+   *  session DOES recognise custom URL schemes — when the page navigates to
+   *  visitgauteng://auth/complete?token=…, the session auto-closes and the
+   *  URL is returned to us. SFSafariViewController blocks custom schemes
+   *  outright, which is why the "Open app" button on the handoff page
+   *  appears to do nothing if we use openBrowserAsync. */
+  async function openOAuthSession(targetUrl: string) {
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(
+        targetUrl,
+        'visitgauteng://auth/complete',
+        {
+          toolbarColor:    '#111111',
+          controlsColor:   '#f7b81e',
+          // Use the same iCloud Keychain / cookies as Safari so users who
+          // are already signed in to Google in Safari can pick that account.
+          preferEphemeralSession: false,
+        }
+      );
+      if (result.type === 'success' && result.url) {
+        const u = new URL(result.url);
+        const token = u.searchParams.get('token');
+        if (token) authBus.emitToken(token);
+      }
+    } catch {
+      // User cancelled or session failed; nothing to recover.
     }
   }
 
@@ -93,7 +165,7 @@ export function AppWebView({ url }: Props) {
         (u.host === 'www.facebook.com' || u.host === 'm.facebook.com') &&
         FACEBOOK_OAUTH_PREFIXES.some(p => u.pathname.startsWith(p));
       if (OAUTH_HOSTS.has(u.host) || isFacebookOAuth) {
-        void openInBrowserThenReload(req.url);
+        void openInBrowser(req.url);
         return false;
       }
 
@@ -114,8 +186,15 @@ export function AppWebView({ url }: Props) {
     // WebView's onLoadEnd will toggle refreshing off
   }
 
-  function onMessage(_e: WebViewMessageEvent) {
-    /* reserved for future native<->web bridging (push, geolocation, etc.) */
+  function onMessage(e: WebViewMessageEvent) {
+    try {
+      const msg = JSON.parse(e.nativeEvent.data) as { type?: string; url?: string };
+      if (msg?.type === 'open-oauth' && typeof msg.url === 'string' && msg.url) {
+        void openOAuthSession(msg.url);
+      }
+    } catch {
+      // Ignore non-JSON messages; they're for future native<->web bridging.
+    }
   }
 
   // ── Offline fallback ─────────────────────────────────────────────────────
@@ -153,12 +232,18 @@ export function AppWebView({ url }: Props) {
           onLoadEnd={() => { setLoading(false); setRefreshing(false); }}
           onShouldStartLoadWithRequest={shouldStartLoad}
           onMessage={onMessage}
+          injectedJavaScriptBeforeContentLoaded={NATIVE_BRIDGE_JS}
           allowsBackForwardNavigationGestures
           decelerationRate="normal"
           pullToRefreshEnabled
           renderLoading={() => (
             <View style={styles.loader}>
-              <ActivityIndicator size="large" color="#f7b81e" />
+              <Image
+                source={require('@/assets/images/splash-icon.png')}
+                style={styles.loaderLogo}
+                resizeMode="contain"
+              />
+              <ActivityIndicator size="small" color="#f7b81e" style={styles.loaderSpinner} />
             </View>
           )}
           style={styles.flex}
@@ -177,7 +262,9 @@ export function AppWebView({ url }: Props) {
 const styles = StyleSheet.create({
   root:       { flex: 1, backgroundColor: '#111111' },
   flex:       { flex: 1 },
-  loader:     { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111111' },
+  loader:        { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111111' },
+  loaderLogo:    { width: 140, height: 140, marginBottom: 28 },
+  loaderSpinner: { transform: [{ scale: 0.9 }] },
   topProgress: {
     position: 'absolute',
     top: 8,
