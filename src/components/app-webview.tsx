@@ -234,7 +234,6 @@ export function AppWebView({ url }: Props) {
           onMessage={onMessage}
           injectedJavaScriptBeforeContentLoaded={NATIVE_BRIDGE_JS}
           allowsBackForwardNavigationGestures
-          decelerationRate="normal"
           pullToRefreshEnabled
           renderLoading={() => (
             <View style={styles.loader}>
