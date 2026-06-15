@@ -200,7 +200,7 @@ export function AppWebView({ url }: Props) {
   // ── Offline fallback ─────────────────────────────────────────────────────
   if (netInfo.isInternetReachable === false) {
     return (
-      <SafeAreaView style={styles.fallback} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.fallback} edges={['left', 'right']}>
         <Text style={styles.fallbackTitle}>You&apos;re offline</Text>
         <Text style={styles.fallbackBody}>
           Visit Gauteng needs an internet connection. Reconnect and pull down to refresh.
@@ -213,7 +213,7 @@ export function AppWebView({ url }: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.root} edges={['left', 'right']}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.flex}
