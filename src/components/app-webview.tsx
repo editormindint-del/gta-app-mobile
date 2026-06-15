@@ -6,8 +6,6 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -83,8 +81,7 @@ export function AppWebView({ url }: Props) {
   const webRef = useRef<WebView>(null);
   const netInfo = useNetInfo();
 
-  const [loading, setLoading]       = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Subscribe to the deep-link auth bus. When the user finishes OAuth in
   // SFSafariViewController, the web app redirects to visitgauteng://auth/
@@ -180,11 +177,11 @@ export function AppWebView({ url }: Props) {
     }
   }
 
-  function onRefresh() {
-    setRefreshing(true);
-    webRef.current?.reload();
-    // WebView's onLoadEnd will toggle refreshing off
-  }
+  // (Outer ScrollView+RefreshControl was removed: it intercepted vertical
+  //  drags on Android and triggered a refresh when the user was just trying
+  //  to scroll the page. The WebView's native pullToRefreshEnabled handles
+  //  Android refresh correctly because it only fires when the WebView's own
+  //  scroll position is at the top.)
 
   function onMessage(e: WebViewMessageEvent) {
     try {
@@ -214,40 +211,32 @@ export function AppWebView({ url }: Props) {
 
   return (
     <SafeAreaView style={styles.root} edges={['left', 'right']}>
-      <ScrollView
+      <WebView
+        ref={webRef}
+        source={{ uri: url }}
+        applicationNameForUserAgent={NATIVE_UA_TOKEN}
+        sharedCookiesEnabled
+        thirdPartyCookiesEnabled
+        startInLoadingState
+        onLoadStart={() => setLoading(true)}
+        onLoadEnd={() => setLoading(false)}
+        onShouldStartLoadWithRequest={shouldStartLoad}
+        onMessage={onMessage}
+        injectedJavaScriptBeforeContentLoaded={NATIVE_BRIDGE_JS}
+        allowsBackForwardNavigationGestures
+        pullToRefreshEnabled
+        renderLoading={() => (
+          <View style={styles.loader}>
+            <Image
+              source={require('@/assets/images/splash-icon.png')}
+              style={styles.loaderLogo}
+              resizeMode="contain"
+            />
+            <ActivityIndicator size="small" color="#f7b81e" style={styles.loaderSpinner} />
+          </View>
+        )}
         style={styles.flex}
-        contentContainerStyle={styles.flex}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f7b81e" />
-        }
-      >
-        <WebView
-          ref={webRef}
-          source={{ uri: url }}
-          applicationNameForUserAgent={NATIVE_UA_TOKEN}
-          sharedCookiesEnabled
-          thirdPartyCookiesEnabled
-          startInLoadingState
-          onLoadStart={() => setLoading(true)}
-          onLoadEnd={() => { setLoading(false); setRefreshing(false); }}
-          onShouldStartLoadWithRequest={shouldStartLoad}
-          onMessage={onMessage}
-          injectedJavaScriptBeforeContentLoaded={NATIVE_BRIDGE_JS}
-          allowsBackForwardNavigationGestures
-          pullToRefreshEnabled
-          renderLoading={() => (
-            <View style={styles.loader}>
-              <Image
-                source={require('@/assets/images/splash-icon.png')}
-                style={styles.loaderLogo}
-                resizeMode="contain"
-              />
-              <ActivityIndicator size="small" color="#f7b81e" style={styles.loaderSpinner} />
-            </View>
-          )}
-          style={styles.flex}
-        />
-      </ScrollView>
+      />
 
       {loading && (
         <View pointerEvents="none" style={styles.topProgress}>
