@@ -48,6 +48,10 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        {/* OAuth deep-link landing — see src/app/auth/complete.tsx. animation
+            'none' keeps the token handoff invisible (no flash of the spinner
+            screen between the browser closing and the tabs re-appearing). */}
+        <Stack.Screen name="auth/complete" options={{ animation: 'none' }} />
       </Stack>
     </SafeAreaProvider>
   );
